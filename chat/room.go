@@ -1,5 +1,12 @@
 package main
 
+import (
+	"log"
+	"net/http"
+
+	"github.com/gorilla/websocket"
+)
+
 // Use two chann to ensure that we are not trying to access the same data at the same time
 
 type room struct {
@@ -17,21 +24,21 @@ type room struct {
 	clients map[*client]bool
 }
 
-func (r *room) run {
+func (r *room) run() {
 	for {
-		select{
+		select {
 
 		// client joins the room
-		case client := r.join:
+		case client := <-r.join:
 			r.clients[client] = true
 
 		//client leave the room
-		case client := r.leave:
+		case client := <-r.leave:
 			delete(r.clients, client)
 			close(client.send)
-		
+
 		// room receives the msg
-		case msg := r.forward:
+		case msg := <-r.forward:
 
 			// forward the msg to all the clients
 			for client := range r.clients {
@@ -47,4 +54,41 @@ func (r *room) run {
 			}
 		}
 	}
+}
+
+const (
+	socketBufferSize  = 1024
+	messageBufferSize = 256
+)
+
+var upgrader = &websocket.Upgrader{
+	ReadBufferSize:  socketBufferSize,
+	WriteBufferSize: socketBufferSize,
+}
+
+func (r *room) ServeHTTPS(w http.ResponseWriter, req *http.Request) {
+
+	// upgrade HTTP to WebSocket
+	socket, err := upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		log.Fatal("ServeHTTP Error: ", err)
+		return
+	}
+
+	client := &client{
+		socket: socket,
+		send:   make(chan []byte, messageBufferSize),
+		room:   r,
+	}
+
+	r.join <- client
+	defer func() { r.leave <- client }()
+
+	// Since Gorilla websocket conn are not safe for concurrent writes,
+	// each client has its own dedicated writer goroutine
+	go client.write()
+
+	// runs in current goroutine(main) and block until client disconnect or an error occurs
+	// while blocked, continuously reads msgs from websocket and forwards them to room channel
+	client.read()
 }
