@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"chatapp.myatty.net/trace"
 	"github.com/gorilla/websocket"
 )
 
@@ -22,6 +23,9 @@ type room struct {
 
 	// clients map holds all current client in this room
 	clients map[*client]bool
+
+	// tracer receives the trace information of the activity in the room
+	tracer trace.Tracer
 }
 
 func newRoom() *room {
@@ -40,11 +44,13 @@ func (r *room) run() {
 		// client joins the room
 		case client := <-r.join:
 			r.clients[client] = true
+			r.tracer.Trace("New Client Joined.")
 
 		//client leave the room
 		case client := <-r.leave:
 			delete(r.clients, client)
 			close(client.send)
+			r.tracer.Trace("Client left the room.")
 
 		// room receives the msg
 		case msg := <-r.forward:
@@ -55,10 +61,12 @@ func (r *room) run() {
 
 				case client.send <- msg:
 					// send the msg
+					r.tracer.Trace(" --- sent to Client")
 				default:
 					// fail to send msg
 					delete(r.clients, client)
 					close(client.send)
+					r.tracer.Trace(" --- failed to send, cleaned up Client")
 				}
 			}
 		}

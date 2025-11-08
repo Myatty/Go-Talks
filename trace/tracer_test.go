@@ -2,13 +2,8 @@ package trace
 
 import (
 	"bytes"
-	"io"
 	"testing"
 )
-
-func New(w io.Writer) Tracer {
-	return &tracer{out: w}
-}
 
 func TestNew(t *testing.T) {
 	var buf bytes.Buffer
