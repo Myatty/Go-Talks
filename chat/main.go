@@ -39,6 +39,8 @@ func main() {
 	r.tracer = trace.New(os.Stdout)
 
 	http.Handle("/chat", MustAuth(&templateHandler{filename: "chat.tmpl.html"}))
+	http.Handle("/login", &templateHandler{filename: "login.tmpl.html"})
+	http.HandleFunc("/auth/", loginHandler)
 	http.Handle("/room", r)
 
 	go r.run()
