@@ -38,7 +38,7 @@ func main() {
 	// Comment this to remove tracing
 	r.tracer = trace.New(os.Stdout)
 
-	http.Handle("/", &templateHandler{filename: "chat.tmpl.html"})
+	http.Handle("/chat", MustAuth(&templateHandler{filename: "chat.tmpl.html"}))
 	http.Handle("/room", r)
 
 	go r.run()
