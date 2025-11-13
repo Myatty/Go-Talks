@@ -1,8 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -46,10 +47,44 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch action {
 	case "login":
-		log.Println("TODO: Handle login for ", provider)
+		switch provider {
+		case "google":
+			url := GoogleOAuthConfig.AuthCodeURL(OAuthStateString)
+			http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+			fmt.Println("redirecting : ", url)
+		default:
+			http.Error(w, "Unsupported provider", http.StatusBadRequest)
+		}
+	case "callback":
+		if provider != "google" {
+			http.Error(w, "Unsupported provider", http.StatusBadRequest)
+			return
+		}
+
+		if r.FormValue("state") != OAuthStateString {
+			http.Error(w, "Invalid OAuth state", http.StatusBadRequest)
+			return
+		}
+
+		code := r.FormValue("code")
+		token, err := GoogleOAuthConfig.Exchange(context.Background(), code)
+		if err != nil {
+			http.Error(w, "Code exchange failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+		if err != nil {
+			http.Error(w, "Failed to get user info: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+
+		data, _ := io.ReadAll(resp.Body)
+		w.Write(data)
+
 	default:
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Auth action %s is not supported", action)
+		fmt.Fprintf(w, "Auth action %s not supported", action)
 	}
-
 }

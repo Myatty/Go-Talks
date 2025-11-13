@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -10,6 +11,10 @@ import (
 	"sync"
 
 	"chatapp.myatty.net/trace"
+	"github.com/joho/godotenv"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 type templateHandler struct {
@@ -17,6 +22,9 @@ type templateHandler struct {
 	filename string
 	templ    *template.Template
 }
+
+var GoogleOAuthConfig *oauth2.Config
+var OAuthStateString = "sixSevensixOne"
 
 func (t *templateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.once.Do(func() {
@@ -30,6 +38,22 @@ func (t *templateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading the .env file!")
+	}
+
+	GoogleOAuthConfig = &oauth2.Config{
+		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		RedirectURL:  "http://localhost:8080/auth/callback/google",
+		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
+		Endpoint:     google.Endpoint,
+	}
+
+	OAuthStateString = "sixSevensixOne"
+
+	fmt.Println("GOOGLE_CLIENT_ID:", os.Getenv("GOOGLE_CLIENT_ID"))
 	var addr = flag.String("addr", ":8080", "The address of the application")
 	flag.Parse()
 
